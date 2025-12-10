@@ -1,0 +1,118 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:18-alpine
+    container_name: chat-app-postgres
+    environment:
+      POSTGRES_USER: chat_user
+      POSTGRES_PASSWORD: chat_password
+      POSTGRES_INITDB_ARGS: "-c timezone=UTC"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chat_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chat-network
+
+  # Auth Service
+  auth:
+    build:
+      context: ./src/auth
+      dockerfile: Dockerfile
+    container_name: auth-service
+    environment:
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_USER: "chat_user"
+      DB_PASSWORD: "chat_password"
+      DB_NAME: "ai_companion_chat"
+      DATABASE_URL: "postgresql://chat_user:chat_password@postgres:5432/ai_companion_chat"
+      JWT_SECRET: "61587d1f1b1139e59061068cf33e46e5f6b08a91adb6f1ad40284ac107d9e1e9"
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - chat-network
+
+  # AI Character Service
+  ai-character:
+    build:
+      context: ./src/ai_character
+      dockerfile: Dockerfile
+    container_name: ai-character-service
+    environment:
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_USER: "chat_user"
+      DB_PASSWORD: "chat_password"
+      DB_NAME: "ai_companion_chat"
+      DATABASE_URL: "postgresql://chat_user:chat_password@postgres:5432/ai_companion_chat"
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - chat-network
+
+  # Gateway Service
+  gateway:
+    build:
+      context: ./src/gateway
+      dockerfile: Dockerfile
+    container_name: gateway-service
+    environment:
+      AUTH_SVC_ADDR: "auth:8001"
+      AI_CHAR_SVC_ADDR: "ai-character:8003"
+    ports:
+      - "8002:8002"
+    depends_on:
+      - auth
+      - ai-character
+    networks:
+      - chat-network
+
+  websocket_chat:
+    build:
+      context: ./src/chat-ws
+      dockerfile: Dockerfile
+    container_name: chat-service
+    environment:
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_USER: "chat_user"
+      DB_PASSWORD: "chat_password"
+      DB_NAME: "ai_companion_chat"
+      DATABASE_URL: "postgresql://chat_user:chat_password@postgres:5432/ai_companion_chat"
+      AUTH_SVC_ADDR: "auth:8001"
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - chat-network
+  ai-consumer:
+    build:
+      context: ./src/ai-consumer
+      dockerfile: Dockerfile
+    container_name: ai-consumer
+    environment:
+      - DATABASE_URL=postgresql://chat_user:chat_password@postgres:5432/ai-companion-chat
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  postgres_data:
+
+networks:
+  chat-network:
+    driver: bridge
