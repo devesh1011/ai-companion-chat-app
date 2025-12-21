@@ -12,11 +12,15 @@ class Settings(BaseSettings):
     debug: bool = False
     env: str = "development"
 
-    DB_HOST: str = os.getenv("DB_HOST", "localhost")
+    DB_HOST: str = os.getenv("DB_HOST", "postgres-headless")
     DB_PORT: str = os.getenv("DB_PORT", "5432")
-    DB_USER: str = os.getenv("DB_USER", "postgres")
-    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "mysecretpassword")
-    DB_NAME: str = os.getenv("DB_NAME", "ai-companion-chat")
+    DB_USER: str = os.getenv("DB_USER", "chat_user")
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
+    DB_NAME: str = os.getenv("DB_NAME", "chat_db")
+
+    AUTH_SVC_ADDR: str = os.getenv("AUTH_SVC_ADDR", "ai-companion-auth-service:3001")
+
+    RABBITMQ_HOST: str = os.getenv("RABBITMQ_HOST", "rabbitmq-headless")
 
 
 @lru_cache()

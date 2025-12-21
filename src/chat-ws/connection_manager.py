@@ -9,7 +9,7 @@ class ConnectionInfo(BaseModel):
     """Stores metadata about a connected client"""
 
     session_id: str
-    user_id: str
+    username: str
     character_id: str
     websocket: WebSocket
     connected_at: datetime
@@ -24,7 +24,7 @@ class ConnectionManager:
     async def connect(
         self,
         session_id: str,
-        user_id: str,
+        username: str,
         character_id: str,
         websocket: WebSocket,
     ) -> None:
@@ -33,15 +33,13 @@ class ConnectionManager:
 
         Args:
             session_id: Unique session identifier
-            user_id: User's unique ID
+            username: User's unique ID
             character_id: AI character's unique ID
             websocket: The WebSocket connection object
         """
-        await websocket.accept()
-
         connection_info = ConnectionInfo(
             session_id=session_id,
-            user_id=user_id,
+            username=username,
             character_id=character_id,
             websocket=websocket,
             connected_at=datetime.now(),
@@ -125,7 +123,7 @@ class ConnectionManager:
 
     async def send_to_user(
         self,
-        user_id: str,
+        username: str,
         character_id: str,
         message: dict | str,
     ) -> bool:
@@ -133,7 +131,7 @@ class ConnectionManager:
         Send a message to a specific user chatting with a specific character
 
         Args:
-            user_id: Target user's ID
+            username: Target user's ID
             character_id: AI character's ID
             message: Message to send
 
@@ -141,11 +139,11 @@ class ConnectionManager:
             True if sent successfully, False otherwise
         """
         for conn in self.active_connections.values():
-            if conn.user_id == user_id and conn.character_id == character_id:
+            if conn.username == username and conn.character_id == character_id:
                 return await self.send_personal_message(conn.session_id, message)
 
         print(
-            f"⚠ No active connection found for user={user_id}, character={character_id}"
+            f"⚠ No active connection found for user={username}, character={character_id}"
         )
         return False
 
@@ -158,7 +156,7 @@ class ConnectionManager:
         return [
             {
                 "session_id": conn.session_id,
-                "user_id": conn.user_id,
+                "username": conn.username,
                 "character_id": conn.character_id,
                 "connected_at": conn.connected_at.isoformat(),
             }

@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-ws
+spec:
+  selector:
+    matchLabels:
+      app: chat-ws
+  template:
+    metadata:
+      labels:
+        app: chat-ws
+    spec:
+      containers:
+      - name: chat-ws
+        image: deveshk237572/chat-ws:latest
+        resources:
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+          requests:
+            memory: "128Mi"
+            cpu: "256m"
+        envFrom:
+        - configMapRef:
+            name: ai-companion-chat-ws-configmap
+        - secretRef:
+            name: ai-companion-chat-ws-secret
+        ports:
+        - containerPort: 8004

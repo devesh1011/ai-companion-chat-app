@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-companion-chat-ws-configmap
+data:
+    DB_HOST: "postgres-headless"
+    DB_PORT: "5432"
+    DB_NAME: "chat_db"
+    DEBUG: "false"
+    ENV: "production"
+    RABBITMQ_HOST: "rabbitmq-headless"
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    LOG_LEVEL: "info"
+    AUTH_SVC_ADDR: "ai-companion-auth-service:3001"

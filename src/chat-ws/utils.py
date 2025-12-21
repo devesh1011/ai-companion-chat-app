@@ -1,4 +1,8 @@
+import os
 import requests
+from config import get_settings
+
+settings = get_settings()
 
 
 async def validate_token(token: str) -> dict | None:
@@ -12,8 +16,9 @@ async def validate_token(token: str) -> dict | None:
         Token payload if valid, None if invalid
     """
     try:
+        auth_addr = os.getenv(settings.AUTH_SVC_ADDR, "ai-companion-auth-service:3001")
         response = requests.post(
-            f"http://{os.getenv('AUTH_SVC_ADDR', 'auth:8001')}/validate",
+            f"http://{auth_addr}/validate",
             headers={"Authorization": f"Bearer {token}"},
             timeout=3,
         )

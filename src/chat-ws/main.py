@@ -1,25 +1,23 @@
 import json
 import uuid
+import os
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 
-from db import get_db, Base, engine
+from db import get_db
 from models import ChatSession, SessionStatus
 from connection_manager import manager
 from config import get_settings
 from utils import validate_token
 from models import Message
-from rabbitmq_config import channel
 from redis_config import r
-import pika
+import aio_pika
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    print("Tables created.")
     yield
 
 
@@ -34,21 +32,20 @@ def health_check():
     return {"status": "ok", "service": "chat-ws"}
 
 
-def create_chat_session(db: Session, user_id: str, character_id: str) -> ChatSession:
+def create_chat_session(db: Session, username: str, character_id: str) -> ChatSession:
     """
     Create a new chat session in the database
 
     Args:
         db: Database session
-        user_id: User's unique ID
+        username: Username
         character_id: AI character's unique ID
 
     Returns:
         Created ChatSession object
     """
     session = ChatSession(
-        id=uuid.uuid4(),
-        user_id=user_id,
+        username=username,
         character_id=character_id,
         status=SessionStatus.ACTIVE.value,
     )
@@ -70,41 +67,57 @@ async def websocket_endpoint(
         character_id: AI character's unique ID (from URL path)
         token: JWT token (from query parameter)
     """
-
     token_data = await validate_token(token)
 
     if not token_data:
         await websocket.close(code=4001, reason="Invalid token")
         return
 
-    user_id = token_data.get("username")
+    username = token_data.get("username")
 
-    if not user_id:
+    if not username:
         await websocket.close(code=4001, reason="Invalid token payload")
         return
 
+    await websocket.accept()
+
     db = next(get_db())
     try:
-        chat_session = create_chat_session(db, user_id, character_id)
+        chat_session = create_chat_session(db, username, character_id)
         session_id = str(chat_session.id)
     except Exception:
         await websocket.close(code=4002, reason="Database error")
         db.close()
         return
 
-    # Step 3: Register connection
-    await manager.connect(session_id, user_id, character_id, websocket)
-    channel.queue_declare("chat.user.msg", passive=True, durable=True)
+    await manager.connect(session_id, username, character_id, websocket)
+
+    # Get a fresh aio_pika RabbitMQ connection for this WebSocket session
+    try:
+        rabbitmq_host = os.getenv("RABBITMQ_HOST", "rabbitmq")
+        rb_connection = await aio_pika.connect_robust(
+            f"amqp://guest:guest@{rabbitmq_host}/"
+        )
+        channel = await rb_connection.channel()
+        queue = await channel.declare_queue("chat.user.msg", durable=True)
+        exchange = await channel.declare_exchange(
+            "chat_app", type="topic", durable=True
+        )
+        await queue.bind(exchange=exchange, routing_key="chat.user.msg")
+        print("Connected to RabbitMQ and bound queue", flush=True)
+    except Exception as e:
+        print(f"ERROR connecting to RabbitMQ: {e}", flush=True)
+        await websocket.close(code=5000, reason="Server error")
+        return
 
     try:
-        # Send welcome message
         await websocket.send_text(
             json.dumps(
                 {
                     "type": "connection",
                     "message": "Connected to chat",
                     "session_id": session_id,
-                    "user_id": user_id,
+                    "username": username,
                     "character_id": character_id,
                 }
             )
@@ -128,8 +141,7 @@ async def websocket_endpoint(
                 # Store message to the database (reuse existing connection)
                 try:
                     user_message = Message(
-                        id=uuid.uuid4(),
-                        user_id=user_id,
+                        username=username,
                         character_id=character_id,
                         session_id=session_id,
                         content=content,
@@ -163,22 +175,21 @@ async def websocket_endpoint(
 
                 # Send the message to the queue
                 message = {
-                    "user_id": user_id,
+                    "username": username,
                     "character_id": character_id,
                     "session_id": session_id,
                     "content": content,
                 }
 
                 try:
-                    channel.basic_publish(
-                        exchange="",
-                        routing_key="chat.user.msg",
-                        body=json.dumps(message),
-                        properties=pika.BasicProperties(
-                            delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
-                        ),
+                    message_body = json.dumps(message).encode()
+                    print(f"Publishing message to chat.user.msg: {message}", flush=True)
+                    await exchange.publish(
+                        aio_pika.Message(body=message_body), routing_key="chat.user.msg"
                     )
+                    print(f"Message published successfully", flush=True)
                 except Exception as e:
+                    print(f"ERROR publishing message: {e}", flush=True)
                     await websocket.send_text(
                         json.dumps({"type": "error", "message": "message was not sent"})
                     )
@@ -217,7 +228,15 @@ async def websocket_endpoint(
             pass
         finally:
             db.close()  # Close DB when user disconnects
+            try:
+                await rb_connection.close()
+            except Exception:
+                pass
 
     except Exception:
         manager.disconnect(session_id)
         db.close()
+        try:
+            await rb_connection.close()
+        except Exception:
+            pass
