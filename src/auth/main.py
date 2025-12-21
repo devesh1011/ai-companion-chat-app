@@ -9,9 +9,9 @@ from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 
-from db import get_db, Base, engine
+from db import get_db
 from config import get_settings
-from schemas import Token, UserInDB, UserCreate, ValidateResponse, UserResponse
+from schemas import Token, UserCreate, ValidateResponse, UserResponse
 from models import User
 from dependencies import (
     create_access_token,
@@ -23,8 +23,6 @@ from dependencies import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    print("Tables created.")
     yield
 
 

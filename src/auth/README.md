@@ -123,7 +123,7 @@ Validate a JWT token and return user information.
    Create a `.env` file or export environment variables:
 
    ```bash
-   export DB_HOST=localhost
+   export DB_HOST=postgres-headless
    export DB_PORT=5432
    export DB_USER=postgres
    export DB_PASSWORD=your_password
@@ -150,16 +150,16 @@ docker-compose up auth
 
 The service uses the following environment variables:
 
-| Variable                      | Default         | Description                      |
-| ----------------------------- | --------------- | -------------------------------- |
-| `DB_HOST`                     | localhost       | PostgreSQL host                  |
-| `DB_PORT`                     | 5432            | PostgreSQL port                  |
-| `DB_USER`                     | postgres        | Database username                |
-| `DB_PASSWORD`                 | haunted97!      | Database password                |
-| `DB_NAME`                     | postgres        | Database name                    |
-| `JWT_SECRET`                  | (random string) | Secret key for JWT signing       |
-| `ALGORITHM`                   | HS256           | JWT algorithm                    |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | 30              | Token expiration time in minutes |
+| Variable                      | Default           | Description                      |
+| ----------------------------- | ----------------- | -------------------------------- |
+| `DB_HOST`                     | postgres-headless | PostgreSQL host                  |
+| `DB_PORT`                     | 5432              | PostgreSQL port                  |
+| `DB_USER`                     | postgres          | Database username                |
+| `DB_PASSWORD`                 | haunted97!        | Database password                |
+| `DB_NAME`                     | postgres          | Database name                    |
+| `JWT_SECRET`                  | (random string)   | Secret key for JWT signing       |
+| `ALGORITHM`                   | HS256             | JWT algorithm                    |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | 30                | Token expiration time in minutes |
 
 ## Dependencies
 
@@ -175,7 +175,7 @@ The service uses the following environment variables:
 
 ### API Documentation
 
-When running locally, visit `http://localhost:8001/docs` for interactive Swagger UI documentation.
+When running locally, visit `http://postgres-headless:8001/docs` for interactive Swagger UI documentation.
 
 ### Database Migrations
 

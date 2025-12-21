@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: auth
+  name: ai-companion-auth
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: auth
+      app: ai-companion-auth
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -14,20 +14,23 @@ spec:
   template:
     metadata:
       labels:
-        app: auth
+        app: ai-companion-auth
     spec:
       containers:
-      - name: auth
-        image: deveshk237572/auth:latest
+      - name: ai-companion-auth
+        image: deveshk237572/ai-companion-auth:latest
         imagePullPolicy: Always
         resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
           limits:
-            memory: "128Mi"
+            memory: "512Mi"
             cpu: "500m"
         ports:
         - containerPort: 8001
         envFrom:
         - configMapRef:
-            name: auth-configmap
+            name: ai-companion-auth-configmap
         - secretRef:
-            name: auth-secret
+            name: ai-companion-auth-secret

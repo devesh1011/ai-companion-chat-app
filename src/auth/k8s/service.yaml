@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: auth
+  name: ai-companion-auth-service
 spec:
   selector:
-    app: auth
+    app: ai-companion-auth
   type: ClusterIP
   ports:
-  - port: 8001
+  - port: 3001
     targetPort: 8001
-    protocol: TCP
+    protocol: TCP 

@@ -4,11 +4,11 @@ import os
 
 class Settings(BaseSettings):
     # DB Config
-    DB_HOST: str = os.getenv("DB_HOST", "localhost")
+    DB_HOST: str = os.getenv("DB_HOST", "postgres-headless")
     DB_PORT: str = os.getenv("DB_PORT", "5432")
-    DB_USER: str = os.getenv("DB_USER", "postgres")
-    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "haunted97!")
-    DB_NAME: str = os.getenv("DB_NAME", "postgres")
+    DB_USER: str = os.getenv("DB_USER", "chat_user")
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "chat_password")
+    DB_NAME: str = os.getenv("DB_NAME", "chat_db")
 
     JWT_SECRET: str = os.getenv(
         "JWT_SECRET", "61587d1f1b1139e59061068cf33e46e5f6b08a91adb6f1ad40284ac107d9e1e9"
