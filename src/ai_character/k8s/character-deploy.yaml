@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-character
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-character
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 4
+  template:
+    metadata:
+      labels:
+        app: ai-character
+    spec:
+      containers:
+      - name: ai-character
+        image: deveshk237572/ai-companion-character:latest
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 8003
+        envFrom:
+        - configMapRef:
+            name: ai-character-configmap
+        - secretRef:
+            name: ai-character-secret

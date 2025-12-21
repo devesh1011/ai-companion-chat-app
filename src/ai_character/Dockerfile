@@ -26,7 +26,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
     UVICORN_WORKERS=2
 
 # Expose port
-EXPOSE 8001
+EXPOSE 8003
 
 # Run the app
-CMD ["/app/.venv/bin/python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8003"]
+CMD ["sh", "-c", "exec /app/.venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8003"]

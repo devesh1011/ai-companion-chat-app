@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-character-configmap
+data:
+  DB_HOST: "postgres-headless"
+  DB_PORT: "5432"
+  DB_NAME: "chat_db"
+  
+  # Application Configuration
+  APP_NAME: "AI Character Service"  
+  APP_VERSION: "0.1.0"
+  DEBUG: "false"
+  ENV: "production"
