@@ -10,3 +10,7 @@ __pycache__/
 .env
 .git/
 .gitignore
+k8s/
+.python-version
+pyproject.toml
+README.md
