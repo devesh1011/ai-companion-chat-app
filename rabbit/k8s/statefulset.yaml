@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+spec:
+  serviceName: rabbitmq-headless
+  replicas: 2
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3-management
+        ports:
+        - containerPort: 5672
+          name: amqp
+        - containerPort: 15672
+          name: management
+        env:
+          - name: RABBITMQ_ERLANG_COOKIE
+            valueFrom:
+              secretKeyRef:
+                name: rabbitmq-secret
+                key: erlang-cookie
+
+          - name: RABBITMQ_DEFAULT_USER
+            value: "guest"
+
+          - name: RABBITMQ_DEFAULT_PASS
+            valueFrom:
+              secretKeyRef:
+                name: rabbitmq-secret
+                key: password
+
+          - name: RABBITMQ_USE_LONGNAME
+            value: "true"
+
+          - name: K8S_SERVICE_NAME
+            value: "rabbitmq-headless"
+
+          - name: K8S_HOSTNAME_SUFFIX
+            value: ".rabbitmq-headless.default.svc.cluster.local"
+
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+
+          - name: RABBITMQ_NODENAME
+            value: "rabbit@$(POD_NAME).rabbitmq-headless.default.svc.cluster.local"
+
+        volumeMounts:
+        - name: rabbitmq-storage
+          mountPath: /var/lib/rabbitmq/mnesia
+
+  volumeClaimTemplates:
+  - metadata:
+      name: rabbitmq-storage
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: "256Mi"
