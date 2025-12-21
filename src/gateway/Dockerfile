@@ -30,7 +30,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
     UVICORN_WORKERS=2
 
-EXPOSE 8002
+EXPOSE 5000
 
 # Run the app
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002", "--workers", "2"]
+CMD ["sh", "-c", "exec /app/.venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 5000"]

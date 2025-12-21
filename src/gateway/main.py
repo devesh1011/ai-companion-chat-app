@@ -1,13 +1,27 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from auth_svc import access
 from typing import Annotated
 from fastapi.security import OAuth2PasswordRequestForm
 from auth.validate import validate_token
 import ai_char_svc
+from pydantic import BaseModel
 
 app = FastAPI()
 security = HTTPBearer()
+
+
+class User(BaseModel):
+    username: str
+
+
+class UserCreate(User):
+    name: str
+    password: str
+
+
+class UserResponse(User):
+    name: str
 
 
 @app.post("/login")
@@ -15,6 +29,17 @@ def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ):
     token_result, err = access.login(form_data)
+
+    if err:
+        error_message, status_code = err
+        raise HTTPException(status_code=status_code, detail=error_message)
+
+    return token_result
+
+
+@app.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+def register(data: UserCreate):
+    token_result, err = access.register(data)
 
     if err:
         error_message, status_code = err
