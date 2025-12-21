@@ -1,8 +1,10 @@
-from sqlalchemy import Column, String, UUID, DateTime, Index, Enum
+from sqlalchemy import Column, String, UUID, DateTime, Index
 from sqlalchemy.sql.functions import func
-from db import Base
+from sqlalchemy.orm import declarative_base
 import uuid
 import enum
+
+Base = declarative_base()
 
 
 class SessionStatus(str, enum.Enum):
@@ -18,7 +20,7 @@ class ChatSession(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     # Foreign keys
-    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    username = Column(String, nullable=False, index=True)
     character_id = Column(UUID(as_uuid=True), nullable=False, index=True)
 
     # Session metadata
@@ -36,8 +38,8 @@ class ChatSession(Base):
 
     # Indexes
     __table_args__ = (
-        Index("idx_user_character_session", "user_id", "character_id"),
-        Index("idx_user_sessions", "user_id"),
+        Index("idx_user_character_session", "username", "character_id"),
+        Index("idx_user_sessions", "username"),
         Index("idx_active_sessions", "status"),
     )
 
@@ -49,7 +51,7 @@ class Message(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     # Foreign keys / relationships
-    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    username = Column(String, nullable=False, index=True)
     character_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     session_id = Column(UUID(as_uuid=True), nullable=False, index=True)
 
@@ -67,7 +69,7 @@ class Message(Base):
 
     # Indexes for common queries
     __table_args__ = (
-        Index("idx_user_character", "user_id", "character_id"),
+        Index("idx_user_character", "username", "character_id"),
         Index("idx_session_messages", "session_id"),
         Index("idx_message_role", "role"),
     )

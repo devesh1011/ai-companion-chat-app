@@ -1,23 +1,18 @@
-# what ai consumer would do is
-# 1. listen to the queue message
-# 2. fetch the system prompt from the ai_character db for the character_id
-# 3. fetch the last 10 messages between the user and character
-# 4. generate the response
-# 5. publish the message on the chat.ai.msg queue
-import pika
 import json
 import os
-import sys
+
 import requests
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from character_response import reply
 from redis_config import r
+import asyncio
+import aio_pika
 
 # Database setup for chat-ws
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://chat_user:chat_password@postgres:5432/ai-companion-chat",
+    "",
 )
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
@@ -35,7 +30,7 @@ def fetch_character_system_prompt(character_id: str) -> str | None:
     """
     try:
         response = requests.get(
-            f"http://{os.getenv('AI_CHAR_SVC_ADDR', 'ai-character:8003')}/api/characters/id/{character_id}",
+            f"http://{os.getenv('AI_CHAR_SVC_ADDR', 'ai-character-service:3000')}/api/characters/id/{character_id}",
             timeout=5,
         )
 
@@ -51,14 +46,14 @@ def fetch_character_system_prompt(character_id: str) -> str | None:
 
 
 def fetch_conversation_history(
-    user_id: str, character_id: str, session_id: str, limit: int = 10
+    username: str, character_id: str, session_id: str, limit: int = 10
 ) -> list[dict]:
     """
        Fetch last N messages between user and character.
        Tries Redis first (fast cache), falls back to database if not found.
 
        Args:
-           user_id: User's unique ID
+           username: User's unique ID
            character_id: AI character's unique ID
            session_id: Chat session ID
            limit: Number of messages to fetch (default 10)
@@ -90,7 +85,7 @@ def fetch_conversation_history(
         query = f"""
             SELECT role, content, created_at
             FROM messages
-            WHERE user_id = '{user_id}'
+            WHERE username = '{username}'
             AND character_id = '{character_id}'
             AND session_id = '{session_id}'
             ORDER BY created_at ASC
@@ -117,85 +112,65 @@ def fetch_conversation_history(
         return []
 
 
-def main():
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host="rabbitmq"))
+async def main():
+    rabbitmq_host = os.getenv("RABBITMQ_HOST", "rabbitmq")
+    connection = await aio_pika.connect_robust(f"amqp://guest:guest@{rabbitmq_host}/")
+    channel = await connection.channel()
 
-    channel = connection.channel()
-    channel.queue_declare("chat.ai.msg")
+    queue = await channel.declare_queue("chat.user.msg", durable=True)
+    exchange = await channel.declare_exchange("chat_app", type="topic", durable=True)
+    await queue.bind(exchange=exchange, routing_key="chat.user.msg")
+    print("Connected to RabbitMQ and bound queue", flush=True)
 
-    def callback(ch, method, properties, body):
+    async def callback(msg: aio_pika.abc.AbstractIncomingMessage) -> None:
         try:
-            print(f"Received message: {body}")
-
-            # Step 1: Parse incoming message
-            message_data = json.loads(body)
-            user_id = message_data.get("user_id")
+            message_data = json.loads(msg.body)
+            print(f"Received message: {message_data}", flush=True)
+            username = message_data.get("username")
             character_id = message_data.get("character_id")
             session_id = message_data.get("session_id")
             user_content = message_data.get("content")
 
-            if not all([user_id, character_id, session_id, user_content]):
+            if not all([username, character_id, session_id, user_content]):
                 print("Invalid message format, missing required fields")
-                ch.basic_nack(delivery_tag=method.delivery_tag)
+                await msg.nack()
                 return
 
-            # Step 2: Fetch system prompt from ai_character service
             system_prompt = fetch_character_system_prompt(character_id)
             if not system_prompt:
                 print(f"Could not fetch system prompt for character {character_id}")
-                ch.basic_nack(delivery_tag=method.delivery_tag)
+                await msg.nack()
                 return
 
-            # Fetch last 10 messages between user and character
             conversation_history = fetch_conversation_history(
-                user_id, character_id, session_id
+                username, character_id, session_id
             )
-
-            # Format for display
-            formatted_history = "\n".join(
-                [
-                    f"{msg['role'].upper()}: {msg['content']}"
-                    for msg in conversation_history
-                ]
-            )
-            print(f"Conversation history:\n{formatted_history}")
-
-            # Generate response using system prompt and history
             result = reply(message_data, system_prompt, conversation_history)
 
-            # Step 5 - Publish to chat.ai.msg queue
-            channel.basic_publish(
-                exchange="",
-                routing_key="chat.ai.msg",
-                body=json.dumps(result),
-                properties=pika.BasicProperties(
-                    delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
-                ),
+            # Publish result to chat.ai.msg queue
+            result_data = json.dumps(result).encode()
+            await exchange.publish(
+                aio_pika.Message(body=result_data), routing_key="chat.ai.msg"
             )
 
-            ch.basic_ack(delivery_tag=method.delivery_tag)
+            await msg.ack()
 
         except json.JSONDecodeError:
             print("Error: Invalid JSON in message")
-            ch.basic_nack(delivery_tag=method.delivery_tag)
+            await msg.nack()
         except Exception as e:
             print(f"Error processing message: {str(e)}")
-            ch.basic_nack(delivery_tag=method.delivery_tag)
+            await msg.nack()
 
-    queue_name = os.getenv("QUEUE_NAME", "chat.user.msg")
-    channel.queue_declare(queue=queue_name, durable=True)
-    channel.basic_consume(queue=queue_name, on_message_callback=callback)
-    print(f"Waiting for messages on queue: {queue_name}")
+    print("Waiting for messages on queue: chat.user.msg")
+    print(
+        f"Queue bound to exchange: chat_app with routing key: chat.user.msg", flush=True
+    )
 
-    channel.start_consuming()
+    async with queue.iterator() as queue_iter:
+        async for message in queue_iter:
+            await callback(message)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("Interrupted")
-        try:
-            sys.exit(0)
-        except SystemExit:
-            os._exit(0)
+    asyncio.run(main())

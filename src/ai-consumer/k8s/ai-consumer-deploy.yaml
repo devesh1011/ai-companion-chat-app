@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-consumer
+spec:
+  selector:
+    matchLabels:
+      app: ai-consumer
+  template:
+    metadata:
+      labels:
+        app: ai-consumer
+    spec:
+      containers:
+      - name: ai-consumer
+        image: deveshk237572/ai-consumer
+        envFrom:
+          - configMapRef:
+              name: ai-consumer-configmap
+          - secretRef:
+              name: ai-consumer-secret
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-consumer-configmap
+data:
+  DATABASE_URL: postgresql+psycopg2://chat_user:chat_password@postgres-headless:5432/chat_db
+  AI_CHAR_SVC_ADDR: ai-character-service:3000
+  QUEUE_NAME: chat.user.msg
+  RABBITMQ_HOST: rabbitmq
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  LOG_LEVEL: info

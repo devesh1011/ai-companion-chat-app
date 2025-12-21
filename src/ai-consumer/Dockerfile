@@ -16,7 +16,6 @@ WORKDIR /app
 
 
 COPY --from=builder /app/.venv /app/.venv
-# Copy application code
 COPY consumer.py redis_config.py models.py ./
 COPY character_response ./character_response
 
