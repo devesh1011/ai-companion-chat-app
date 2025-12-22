@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.coverage
+*.log
+.env
+.git/
+.gitignore
+.k8s/
+.python-version
+pyproject.toml
+README.md
+uv.lock
