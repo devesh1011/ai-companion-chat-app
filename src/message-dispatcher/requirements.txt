@@ -1,0 +1,5 @@
+redis>=7.1.0
+sqlalchemy>=2.0.45
+psycopg2-binary
+aio-pika
+pydantic-settings
