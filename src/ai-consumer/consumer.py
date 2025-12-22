@@ -114,7 +114,10 @@ def fetch_conversation_history(
 
 async def main():
     rabbitmq_host = os.getenv("RABBITMQ_HOST", "rabbitmq")
-    connection = await aio_pika.connect_robust(f"amqp://guest:guest@{rabbitmq_host}/")
+    connection = await aio_pika.connect_robust(
+        f"amqp://guest:guest@{rabbitmq_host}/",
+        client_properties={"connection_name": "ai-consumer"},
+    )
     channel = await connection.channel()
 
     queue = await channel.declare_queue("chat.user.msg", durable=True)
@@ -123,53 +126,60 @@ async def main():
     print("Connected to RabbitMQ and bound queue", flush=True)
 
     async def callback(msg: aio_pika.abc.AbstractIncomingMessage) -> None:
-        try:
-            message_data = json.loads(msg.body)
-            print(f"Received message: {message_data}", flush=True)
-            username = message_data.get("username")
-            character_id = message_data.get("character_id")
-            session_id = message_data.get("session_id")
-            user_content = message_data.get("content")
+        async with msg.process():
+            try:
+                message_data = json.loads(msg.body)
+                print(f"Received message: {message_data}", flush=True)
+                username = message_data.get("username")
+                character_id = message_data.get("character_id")
+                session_id = message_data.get("session_id")
+                user_content = message_data.get("content")
 
-            if not all([username, character_id, session_id, user_content]):
-                print("Invalid message format, missing required fields")
-                await msg.nack()
-                return
+                if not all([username, character_id, session_id, user_content]):
+                    print("Invalid message format, missing required fields")
+                    return
 
-            system_prompt = fetch_character_system_prompt(character_id)
-            if not system_prompt:
-                print(f"Could not fetch system prompt for character {character_id}")
-                await msg.nack()
-                return
+                system_prompt = fetch_character_system_prompt(character_id)
+                if not system_prompt:
+                    print(f"Could not fetch system prompt for character {character_id}")
+                    return
 
-            conversation_history = fetch_conversation_history(
-                username, character_id, session_id
-            )
-            result = reply(message_data, system_prompt, conversation_history)
+                conversation_history = fetch_conversation_history(
+                    username, character_id, session_id
+                )
+                # print("this message comes from the redis fetch conversation history")
+                print(conversation_history)
+                print(system_prompt)
+                result = await reply(message_data, system_prompt, conversation_history)
 
-            # Publish result to chat.ai.msg queue
-            result_data = json.dumps(result).encode()
-            await exchange.publish(
-                aio_pika.Message(body=result_data), routing_key="chat.ai.msg"
-            )
+                # Publish result to chat.ai.msg queue
+                result["username"] = username
+                result["character_id"] = character_id
+                result["session_id"] = session_id
 
-            await msg.ack()
+                result_data = json.dumps(result).encode()
+                await exchange.publish(
+                    aio_pika.Message(body=result_data), routing_key="chat.ai.msg"
+                )
+                print("Result published to chat.ai.msg", flush=True)
 
-        except json.JSONDecodeError:
-            print("Error: Invalid JSON in message")
-            await msg.nack()
-        except Exception as e:
-            print(f"Error processing message: {str(e)}")
-            await msg.nack()
+            except json.JSONDecodeError:
+                print("Error: Invalid JSON in message")
+            except Exception as e:
+                print(f"Error processing message: {str(e)}")
 
     print("Waiting for messages on queue: chat.user.msg")
     print(
-        f"Queue bound to exchange: chat_app with routing key: chat.user.msg", flush=True
+        "Queue bound to exchange: chat_app with routing key: chat.user.msg", flush=True
     )
 
-    async with queue.iterator() as queue_iter:
-        async for message in queue_iter:
-            await callback(message)
+    await queue.consume(callback)
+    print("Consumer started, waiting for messages...", flush=True)
+
+    try:
+        await asyncio.Future()  # Keep the event loop running
+    finally:
+        await connection.close()
 
 
 if __name__ == "__main__":
