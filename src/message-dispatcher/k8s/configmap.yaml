@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: message-dispatcher-configmap
+data:
+  DB_HOST: "postgres-headless"
+  DB_PORT: "5432"
+  DB_NAME: "chat_db"
+  RABBITMQ_HOST: "rabbitmq-headless"
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
