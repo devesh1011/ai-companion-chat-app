@@ -96,7 +96,8 @@ async def websocket_endpoint(
     try:
         rabbitmq_host = os.getenv("RABBITMQ_HOST", "rabbitmq")
         rb_connection = await aio_pika.connect_robust(
-            f"amqp://guest:guest@{rabbitmq_host}/"
+            f"amqp://guest:guest@{rabbitmq_host}/",
+            client_properties={"connection_name": "chat-ws"},
         )
         channel = await rb_connection.channel()
         queue = await channel.declare_queue("chat.user.msg", durable=True)
