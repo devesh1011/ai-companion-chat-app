@@ -3,9 +3,8 @@
 # saves the message to redis, db
 # sent back the message to ws endpoint
 import aio_pika
-import os
 import asyncio
-from save_message import save_msg_to_db, store_msg_in_redis
+from save_message import save_msg_to_db, store_msg_in_redis, publish_to_session_channel
 import json
 from config import get_settings
 
@@ -33,7 +32,7 @@ async def main():
                 print(f"Received AI response: {message_data}", flush=True)
                 await save_msg_to_db(message_data)
                 await store_msg_in_redis(message_data)
-                print("Message saved to DB and Redis", flush=True)
+                await publish_to_session_channel(message_data)
             except Exception as e:
                 print(f"Error processing message: {e}", flush=True)
                 raise
