@@ -2,12 +2,14 @@ from models import Message, get_db
 import uuid
 from redis_config import r
 import json
+from datetime import datetime
 
 
 async def save_msg_to_db(message_data: dict):
     db = next(get_db())
     try:
         username = message_data.get("username")
+        print(username)
         character_id = message_data.get("character_id")
         session_id = message_data.get("session_id")
         ai_response = message_data.get("content")
@@ -48,5 +50,34 @@ async def store_msg_in_redis(message_data: dict) -> bool:
         print(f"Message stored in Redis for session {session_id}", flush=True)
         return True
     except Exception as e:
-        print(f"Error storing in Redis: {str(e)}", flush=True)
-        raise
+        print("Error storing in redis", e)
+
+
+async def publish_to_session_channel(message_data: dict) -> bool:
+    """
+    Publish message to session-specific Redis Pub/Sub channel
+    This allows connected WebSocket clients to receive real-time updates
+    """
+    session_id = message_data.get("session_id")
+
+    if not session_id:
+        print("Error: session_id not found in message_data", flush=True)
+        return False
+
+    channel_message = {
+        "role": message_data.get("role"),
+        "content": message_data.get("content"),
+        "username": message_data.get("username"),
+        "character_id": message_data.get("character_id"),
+        "session_id": session_id,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+    try:
+        channel_name = f"session:{session_id}"
+        r.publish(channel_name, json.dumps(channel_message))
+        print(f"Message published to channel {channel_name}", flush=True)
+        return True
+    except Exception as e:
+        print(f"Error publishing to Redis channel: {str(e)}", flush=True)
+        return False
