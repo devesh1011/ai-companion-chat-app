@@ -4,7 +4,7 @@ from langchain.messages import HumanMessage, AIMessage, SystemMessage
 from typing import List
 
 model = ChatGoogleGenerativeAI(
-    api_key="AIzaSyB7gCgdy3iq1wB40uxPNliyZmDIi7PL9Bs",
+    api_key=os.getenv("GOOGLE_API_KEY"),
     model="gemini-3-flash-preview",
     temperature=1.0,
     max_tokens=None,

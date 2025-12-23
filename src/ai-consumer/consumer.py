@@ -152,11 +152,12 @@ async def main():
                 print(system_prompt)
                 result = await reply(message_data, system_prompt, conversation_history)
 
-                # Publish result to chat.ai.msg queue
+                # Publish result to chat.ai.msg queue with all required fields
                 result["username"] = username
                 result["character_id"] = character_id
                 result["session_id"] = session_id
 
+                print(f"Publishing result: {result}", flush=True)
                 result_data = json.dumps(result).encode()
                 await exchange.publish(
                     aio_pika.Message(body=result_data), routing_key="chat.ai.msg"
