@@ -22,6 +22,9 @@ class Settings(BaseSettings):
 
     RABBITMQ_HOST: str = os.getenv("RABBITMQ_HOST", "rabbitmq-headless")
 
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "redis")
+    REDIS_PORT: str = os.getenv("REDIS_PORT", "6379")
+
 
 @lru_cache()
 def get_settings() -> Settings:

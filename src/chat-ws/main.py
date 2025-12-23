@@ -1,6 +1,7 @@
 import json
 import uuid
 import os
+import asyncio
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy.orm import Session
@@ -92,7 +93,6 @@ async def websocket_endpoint(
 
     await manager.connect(session_id, username, character_id, websocket)
 
-    # Get a fresh aio_pika RabbitMQ connection for this WebSocket session
     try:
         rabbitmq_host = os.getenv("RABBITMQ_HOST", "rabbitmq")
         rb_connection = await aio_pika.connect_robust(
@@ -124,9 +124,39 @@ async def websocket_endpoint(
             )
         )
 
+        # Redis Pub/Sub setup: subscribe to session-specific channel
+        pubsub = r.pubsub()
+        channel_name = f"session:{session_id}"
+        pubsub.subscribe(channel_name)
+        print(f"Subscribed to Redis channel: {channel_name}", flush=True)
+
+        # Create async tasks for receiving messages and listening to Redis
+        async def listen_to_redis():
+            """Listen for messages from message-dispatcher via Redis Pub/Sub"""
+            loop = asyncio.get_event_loop()
+            while True:
+                try:
+                    message = await loop.run_in_executor(None, pubsub.get_message, True)
+
+                    if message and message.get("type") == "message":
+                        data = json.loads(message.get("data", "{}"))
+                        print(f"Received AI response from Redis: {data}", flush=True)
+                        await websocket.send_json({"type": "ai_response", "data": data})
+                except asyncio.CancelledError:
+                    print(f"Stopping Redis listener for {channel_name}", flush=True)
+                    break
+                except Exception as e:
+                    print(
+                        f"Error in Redis listener: {e}",
+                        flush=True,
+                    )
+                    await asyncio.sleep(0.1)
+
+        # Start Redis listener task
+        redis_task = asyncio.create_task(listen_to_redis())
+
         # Step 4: Listen for incoming messages
         while True:
-            # Receive message from client
             data = await websocket.receive_text()
 
             try:
@@ -139,7 +169,6 @@ async def websocket_endpoint(
                     )
                     continue
 
-                # Store message to the database (reuse existing connection)
                 try:
                     user_message = Message(
                         username=username,
@@ -159,7 +188,6 @@ async def websocket_endpoint(
                     )
                     continue
 
-                # Store the message in Redis for fast access
                 redis_key = f"conversation:{session_id}"
                 message_obj = {
                     "role": "user",
@@ -167,14 +195,11 @@ async def websocket_endpoint(
                     "timestamp": str(uuid.uuid4()),
                 }
                 try:
-                    # Push message to Redis list
                     r.rpush(redis_key, json.dumps(message_obj))
-                    # Set expiration to 24 hours (86400 seconds)
                     r.expire(redis_key, 86400)
                 except Exception as e:
                     print(f"Warning: Failed to store in Redis: {str(e)}")
 
-                # Send the message to the queue
                 message = {
                     "username": username,
                     "character_id": character_id,
@@ -188,24 +213,12 @@ async def websocket_endpoint(
                     await exchange.publish(
                         aio_pika.Message(body=message_body), routing_key="chat.user.msg"
                     )
-                    print(f"Message published successfully", flush=True)
+                    print("Message published successfully", flush=True)
                 except Exception as e:
                     print(f"ERROR publishing message: {e}", flush=True)
                     await websocket.send_text(
                         json.dumps({"type": "error", "message": "message was not sent"})
                     )
-
-                # Echo message back (skeleton - just for testing connection)
-                await websocket.send_text(
-                    json.dumps(
-                        {
-                            "type": "echo",
-                            "role": "user",
-                            "content": content,
-                            "timestamp": str(uuid.uuid4()),
-                        }
-                    )
-                )
 
             except json.JSONDecodeError:
                 await websocket.send_text(
@@ -218,6 +231,23 @@ async def websocket_endpoint(
 
     except WebSocketDisconnect:
         manager.disconnect(session_id)
+
+        # Cancel Redis listener task
+        try:
+            redis_task.cancel()
+            await redis_task
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            print(f"Error cancelling redis_task: {e}", flush=True)
+
+        # Unsubscribe from Redis channel
+        try:
+            pubsub.unsubscribe(channel_name)
+            pubsub.close()
+            print(f"Unsubscribed from Redis channel: {channel_name}", flush=True)
+        except Exception as e:
+            print(f"Error unsubscribing from Redis: {e}", flush=True)
 
         # Update session status to closed in DB
         try:
@@ -236,6 +266,24 @@ async def websocket_endpoint(
 
     except Exception:
         manager.disconnect(session_id)
+
+        # Cancel Redis listener task on exception
+        try:
+            redis_task.cancel()
+            await redis_task
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            print(f"Error cancelling redis_task: {e}", flush=True)
+
+        # Unsubscribe from Redis channel
+        try:
+            pubsub.unsubscribe(channel_name)
+            pubsub.close()
+            print(f"Unsubscribed from Redis channel: {channel_name}", flush=True)
+        except Exception as e:
+            print(f"Error unsubscribing from Redis: {e}", flush=True)
+
         db.close()
         try:
             await rb_connection.close()

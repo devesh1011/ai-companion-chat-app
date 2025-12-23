@@ -1,8 +1,10 @@
 import redis
-import os
+from config import get_settings
 
-redis_host = os.getenv("REDIS_HOST", "postgres-headless")
-redis_port = int(os.getenv("REDIS_PORT", "6379"))
+settings = get_settings()
+
+redis_host = settings.REDIS_HOST
+redis_port = int(settings.REDIS_PORT)
 
 try:
     r = redis.Redis(
