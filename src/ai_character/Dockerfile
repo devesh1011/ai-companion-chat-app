@@ -12,11 +12,11 @@ RUN python3 -m venv /app/.venv && \
 # Stage 2: Runtime stage
 FROM python:3.12-slim
 
-WORKDIR /app
-
 COPY --from=builder /app/.venv /app/.venv
 
-COPY . .
+COPY app ./app
+COPY alembic.ini .
+COPY migrations ./migrations
 
 # Set environment variables
 ENV PATH="/app/.venv/bin:$PATH" \
@@ -29,4 +29,4 @@ ENV PATH="/app/.venv/bin:$PATH" \
 EXPOSE 8003
 
 # Run the app
-CMD ["sh", "-c", "exec /app/.venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8003"]
+CMD ["sh", "-c", "exec /app/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8003"]
