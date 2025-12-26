@@ -4,7 +4,7 @@ A microservices-based real-time chat application that integrates AI characters. 
 
 ## Architecture Overview
 
-[![System Architecture](Screenshot 2025-12-26 at 10.15.38 PM.png)](https://example.com)
+![System Architecture](https://github.com/devesh1011/ai-companion-chat-app/blob/main/Screenshot%202025-12-26%20at%2010.15.38%E2%80%AFPM.png?raw=true)
 
 ## Services
 
