@@ -4,7 +4,7 @@ A microservices-based real-time chat application that integrates AI characters. 
 
 ## Architecture Overview
 
-![System Architecture](Screenshot 2025-12-26 at 10.15.38 PM.png)
+[![System Architecture](Screenshot 2025-12-26 at 10.15.38 PM.png)](https://example.com)
 
 ## Services
 
