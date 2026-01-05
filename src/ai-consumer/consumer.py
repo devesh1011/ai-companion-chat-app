@@ -6,16 +6,20 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from character_response import reply
 from redis_config import r
+from rate_limiter.limit import RateLimiter
 import asyncio
 import aio_pika
+from utils import publish_to_session_channel
 
-# Database setup for chat-ws
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "",
 )
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
+
+# 60 requests per minute
+gemini_limiter = RateLimiter(max_tokens=60, refill_rate=1.0)
 
 
 def fetch_character_system_prompt(character_id: str) -> str | None:
@@ -62,7 +66,6 @@ def fetch_conversation_history(
            List of message dicts with format: {"role": "user|ai", "content": "message"}
     f"""
     try:
-        # get from Redis first (fast)
         redis_key = f"conversation:{session_id}"
         redis_messages = r.lrange(redis_key, -limit, -1)  # Get last N items
 
@@ -77,11 +80,9 @@ def fetch_conversation_history(
 
             return messages
 
-        # Fallback to Postgres
         print("Cache miss, fetching from database...")
         db = SessionLocal()
 
-        # Query messages from the messages table
         query = f"""
             SELECT role, content, created_at
             FROM messages
@@ -150,9 +151,13 @@ async def main():
                 # print("this message comes from the redis fetch conversation history")
                 print(conversation_history)
                 print(system_prompt)
+
+                if not gemini_limiter.consume(1):
+                    await publish_to_session_channel(message_data)
+                    return
+
                 result = await reply(message_data, system_prompt, conversation_history)
 
-                # Publish result to chat.ai.msg queue with all required fields
                 result["username"] = username
                 result["character_id"] = character_id
                 result["session_id"] = session_id
@@ -178,7 +183,7 @@ async def main():
     print("Consumer started, waiting for messages...", flush=True)
 
     try:
-        await asyncio.Future()  # Keep the event loop running
+        await asyncio.Future()
     finally:
         await connection.close()
 

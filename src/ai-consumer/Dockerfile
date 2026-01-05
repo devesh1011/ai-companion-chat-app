@@ -16,8 +16,9 @@ WORKDIR /app
 
 
 COPY --from=builder /app/.venv /app/.venv
-COPY consumer.py redis_config.py models.py ./
+COPY consumer.py redis_config.py models.py utils.py ./
 COPY character_response ./character_response
+COPY rate_limiter ./rate_limiter
 
 ENV PATH="/app/.venv/bin:$PATH" \
     VIRTUAL_ENV="/app/.venv" \
