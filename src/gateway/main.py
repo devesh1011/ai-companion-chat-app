@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.middleware.cors import CORSMiddleware
 from auth_svc import access
 from typing import Annotated
 from fastapi.security import OAuth2PasswordRequestForm
@@ -8,6 +9,23 @@ import ai_char_svc
 from pydantic import BaseModel
 
 app = FastAPI()
+
+# Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:5173",
+        "http://ai-companion-chat.com",
+        "https://ai-companion-chat.com",
+        "http://localhost:8080",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 security = HTTPBearer()
 
 
@@ -61,6 +79,12 @@ async def list_characters(
 
     if err:
         raise HTTPException(status_code=401, detail=err[0])
+    return await ai_char_svc.get_characters()
+
+
+@app.get("/api/characters")
+async def list_characters_api():
+    """Get all characters without auth requirement for demo"""
     return await ai_char_svc.get_characters()
 
 
