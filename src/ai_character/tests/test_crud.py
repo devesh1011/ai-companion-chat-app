@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 import pytest
-from crud import (
+from app.services import (
     get_ai_character_by_id,
     get_ai_character_by_slug,
     create_ai_character,
