@@ -12,11 +12,9 @@ RUN python3 -m venv /app/.venv && \
 # Stage 2: Runtime stage
 FROM python:3.12-slim
 
-WORKDIR /app
-
 COPY --from=builder /app/.venv /app/.venv
 
-COPY . .
+COPY app ./app
 
 # Set environment variables
 ENV PATH="/app/.venv/bin:$PATH" \
@@ -29,4 +27,4 @@ ENV PATH="/app/.venv/bin:$PATH" \
 EXPOSE 8004
 
 # Run the app
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8004"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8004"]
